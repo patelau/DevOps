@@ -1,0 +1,40 @@
+#Author : Chetan Patel
+#Date   : 02-05-2025
+
+FROM registry.redhat.io/ubi8/ubi:latest
+
+FROM registry.access.redhat.com/ubi9/ubi:latest
+RUN SMDEV_CONTAINER_OFF=1 subscription-manager register --org=18977223 --activationkey=activation-key-default-9wtlso && \
+    yum install -y openssh-server && \
+    SMDEV_CONTAINER_OFF=1 subscription-manager unregister && \
+    yum clean all && \
+    echo -e '[main]\nenabled=0' >  /etc/yum/pluginconf.d/subscription-manager.conf
+
+RUN dnf update -y && \
+    dnf install -y curl jq tar gzip libicu --allowerasing --skip-broken --nobest
+
+ENV AGENT_FILE="vsts-agent-linux-arm64-4.251.0.tar.gz"
+ENV AGENT_PACKAGE_URL="https://vstsagentpackage.azureedge.net/agent/4.251.0/${AGENT_FILE}"
+
+# Create agent user and directory
+ARG AGENT_USER=azureagent
+ARG AGENT_DIR=/home/${AGENT_USER}/${AGENT_NAME}
+
+RUN useradd -m ${AGENT_USER} && \
+    mkdir -p ${AGENT_DIR} && \
+    chown -R ${AGENT_USER}:${AGENT_USER} ${AGENT_DIR}
+
+# Switch to agent user
+USER ${AGENT_USER}
+
+# Set working directory
+WORKDIR ${AGENT_DIR}
+
+RUN curl -O -J -L ${AGENT_PACKAGE_URL}
+RUN tar zxf ${AGENT_FILE} -C /home/${AGENT_USER}/${AGENT_NAME}
+
+# Copy entrypoint script
+COPY --chmod=755 entrypoint.sh .
+
+# Entrypoint
+ENTRYPOINT ["./entrypoint.sh"]
